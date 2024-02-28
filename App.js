@@ -7,7 +7,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { TouchableOpacity, FlatList, StyleSheet, Text, View, TextInput, Image } from 'react-native';
 import { useCollection } from 'react-firebase-hooks/firestore';
 
-// Import your background image
 import backgroundImage from './assets/baggroundPic.png';
 
 export default function App() {
@@ -104,7 +103,7 @@ const ListPage = ({ navigation }) => {
                 <Text style={styles.icon}>🗑️</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => viewUpdateDialog(item)}>
-                <Text style={styles.icon}>🔄</Text>
+                <Text style={styles.icon}>📝</Text>
               </TouchableOpacity>
             </View>
           )}
