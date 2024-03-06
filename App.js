@@ -1,13 +1,16 @@
-import { app, database } from './firebase';
-import { collection, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
-import { StatusBar, ImageBackground } from 'react-native';
+import { StatusBar, ImageBackground, TouchableOpacity, FlatList, StyleSheet, Text, View, TextInput, Image } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { TouchableOpacity, FlatList, StyleSheet, Text, View, TextInput, Image } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { app, database, storage } from './firebase';
+import { collection, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { useCollection } from 'react-firebase-hooks/firestore';
-
+import { ref as storageRef, uploadBytes, getDownloadURL as getStorageDownloadURL } from 'firebase/storage';
 import backgroundImage from './assets/baggroundPic.png';
+import * as ImagePicker from 'expo-image-picker';
+import Icon from 'react-native-vector-icons/FontAwesome5';
 
 export default function App() {
   const Stack = createNativeStackNavigator();
@@ -116,6 +119,7 @@ const ListPage = ({ navigation }) => {
 const DetailPage = ({ route }) => {
   const { message } = route.params;
   const [additionalText, setAdditionalText] = useState(message.additionalText || '');
+  const [imagePath, setImagePath] = useState(null);
 
   const handleSaveAdditionalText = async () => {
     if (message.id) {
@@ -125,21 +129,83 @@ const DetailPage = ({ route }) => {
     }
   };
 
+  async function getPicture() {
+    const resultat = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+    });
+    if (!resultat.canceled) {
+      console.log("Image picked..." + resultat.uri);
+      setImagePath(resultat.assets[0].uri);
+    }
+  }
+
+  async function uploadPicture() {
+    if (!imagePath) {
+      console.log("Image path is not defined");
+      return;
+    }
+
+    try {
+      const res = await fetch(imagePath);
+      const blob = await res.blob();
+      const storageRef = ref(storage, "IMG_5578.png");
+
+      uploadBytes(storageRef, blob)
+        .then(() => {
+          console.log("Image uploaded");
+        })
+        .catch((error) => {
+          console.error("Error uploading image:", error);
+        });
+    } catch (error) {
+      console.error("Error fetching image:", error);
+    }
+  }
+
+  async function downloadPicture() {
+    try {
+      const url = await getDownloadURL(ref(storage, "IMG_5578.png"));
+      setImagePath(url);
+      console.log("Image downloaded");
+    } catch (error) {
+      console.error("Error downloading image:", error);
+    }
+  }
+
   return (
     <ImageBackground source={backgroundImage} style={styles.backgroundImage}>
       <View style={styles.detailContainer}>
         <Text style={styles.detailText}>{message.text}</Text>
-        <TouchableOpacity style={styles.saveButton} onPress={handleSaveAdditionalText}>
-          <Text style={styles.buttonText}>Save Details</Text>
-        </TouchableOpacity>
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.actionButton} onPress={getPicture}>
+            <Icon name="image" size={20} color="#000000" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionButton} onPress={uploadPicture}>
+            <Icon name="upload" size={20} color="#000000" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionButton} onPress={downloadPicture}>
+            <Icon name="download" size={20} color="#000000" />
+          </TouchableOpacity>
+        </View>
+
+        {imagePath && (
+          <Image source={{ uri: imagePath }} style={styles.selectedImage} />
+        )}
+
         <TextInput
           style={styles.textInputDP}
           value={additionalText}
           onChangeText={(txt) => setAdditionalText(txt)}
           placeholder="Add more details..."
-          multiline={true} 
+          multiline={true}
         />
-     
+
+        <TouchableOpacity style={styles.saveButton} onPress={handleSaveAdditionalText}>
+          <Text style={styles.buttonText}>Save Details</Text>
+        </TouchableOpacity>
       </View>
     </ImageBackground>
   );
@@ -150,13 +216,12 @@ const styles = StyleSheet.create({
     flex: 1,
     resizeMode: 'cover',
     justifyContent: 'center',
-    width: '100%',  
-    height: '100%', 
-
+    width: '100%',
+    height: '100%',
   },
   detailContainer: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)', 
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
@@ -179,8 +244,8 @@ const styles = StyleSheet.create({
   },
   textInputDP: {
     backgroundColor: 'white',
-    width: '80%',  
-    height: '60%', 
+    width: '80%',
+    height: '60%',
     marginBottom: 20,
     marginTop: 20,
     padding: 10,
@@ -200,7 +265,6 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 5,
     alignItems: 'center',
-    
   },
   saveButton: {
     marginLeft: 10,
@@ -211,14 +275,18 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#8aa8c2',
     fontSize: 16,
-    
   },
   noteContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
-
-
+  },
+  selectedImage: {
+    width: 100,
+    height: 100,
+    resizeMode: 'cover',
+    borderRadius: 10,
+    marginTop: 1,
   },
   noteButton: {
     backgroundColor: 'white',
@@ -227,30 +295,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minWidth: 200,
     maxWidth: 200,
-    alignSelf: 'flex-start',  
-
-
+    alignSelf: 'flex-start',
   },
   noteButtonText: {
     fontSize: 16,
     color: '#8aa8c2',
-    
-
   },
   detailText: {
     color: '#8aa8c2',
     fontSize: 50,
     fontWeight: 'bold',
   },
-
   icon: {
     fontSize: 20,
     marginLeft: 5,
     padding: 5,
     borderRadius: 5,
   },
- 
-  
-
-  
+  imageContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  actionButton: {
+    padding: 10,
+    borderRadius: 5,
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginRight: 15,
+  },
 });
